@@ -25,7 +25,8 @@ Dependencies and Playwright browser are installed automatically on first load.
 git clone https://github.com/p18a/mcp-k-ruoka.git
 cd mcp-k-ruoka
 
-# Create app (pick your own name)
+# Create fly.toml from example (pick your own app name)
+cp fly.example.toml fly.toml
 fly launch --no-deploy
 
 # Set OAuth credentials

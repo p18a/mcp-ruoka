@@ -33,6 +33,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Finder (MacOS) folder config
 .DS_Store
 
+# fly.io (copy fly.example.toml)
+fly.toml
+
 # browser persistent data
 .browser-data/
 
