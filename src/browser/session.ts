@@ -12,11 +12,9 @@ const BASE_URL = "https://www.k-ruoka.fi";
 let context: BrowserContext | null = null;
 let page: Page | null = null;
 let buildNumber: string | null = null;
-let requestCount = 0;
 let initPromise: Promise<Page> | null = null;
 
 const headless = process.env.HEADLESS !== "false";
-const maxRequests = Number(process.env.MAX_REQUESTS_BEFORE_RESET) || 100;
 const dataDir =
 	process.env.BROWSER_DATA_DIR?.replace("~", homedir()) ??
 	join(import.meta.dirname, "..", "..", ".browser-data");
@@ -58,11 +56,6 @@ async function navigateToSite(p: Page): Promise<void> {
 }
 
 async function doInitialize(): Promise<Page> {
-	// Proactive reset after N requests
-	if (context && requestCount >= maxRequests) {
-		await resetSession();
-	}
-
 	if (!context) {
 		await launch();
 	}
@@ -91,10 +84,6 @@ export function getBuildNumber(): string {
 	return buildNumber ?? "30227";
 }
 
-export function incrementRequestCount(): void {
-	requestCount++;
-}
-
 export async function resetSession(): Promise<void> {
 	if (page && !page.isClosed()) {
 		await page.close().catch(() => {});
@@ -112,7 +101,6 @@ export async function resetSession(): Promise<void> {
 	}
 
 	buildNumber = null;
-	requestCount = 0;
 }
 
 export async function shutdown(): Promise<void> {

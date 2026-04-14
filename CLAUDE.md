@@ -34,7 +34,7 @@ K-Ruoka uses Cloudflare Turnstile. We use `playwright-extra` with `puppeteer-ext
 ### Session management
 
 - The browser uses a **persistent data directory** (`.browser-data/` in the project root by default, configurable via `BROWSER_DATA_DIR`) so cookies, cache, and history accumulate across restarts — looking like a returning user.
-- Sessions **auto-reset** after `MAX_REQUESTS_BEFORE_RESET` requests (default 100) or when Cloudflare blocks are detected (403 responses or challenge page markers).
+- Sessions **auto-reset** when Cloudflare blocks are detected (403 responses or challenge page markers).
 - On reset, the data directory is deleted and recreated on the next request.
 - To manually fix a stuck session: `rm -rf .browser-data`
 - Normal failures (empty results, network errors, slow loads) do **not** trigger a reset — only active Cloudflare blocks do.

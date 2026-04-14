@@ -11,6 +11,7 @@ import {
 	validateAccessToken,
 	validateClientCredentials,
 } from "./auth.ts";
+import { getPage } from "./browser/session.ts";
 import { registerSearchTool } from "./tools/search.ts";
 import { registerStoresTool } from "./tools/stores.ts";
 
@@ -255,3 +256,8 @@ Bun.serve({
 });
 
 console.log(`K-Ruoka MCP server listening on http://localhost:${port}/mcp`);
+
+// Eagerly initialize browser session so the first request isn't slow
+getPage().catch((err) => {
+	console.warn("Browser pre-init failed (will retry on first request):", err.message);
+});

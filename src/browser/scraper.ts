@@ -1,5 +1,5 @@
 import type { Product, SearchResult, Store } from "../types.ts";
-import { getBuildNumber, getPage, incrementRequestCount, resetSession } from "./session.ts";
+import { getBuildNumber, getPage, resetSession } from "./session.ts";
 
 interface ApiProduct {
 	id: string;
@@ -125,8 +125,6 @@ export async function searchProducts(
 		}
 	}
 
-	incrementRequestCount();
-
 	if (data.error) {
 		throw new Error(`K-Ruoka API error: ${data.error.message}`);
 	}
@@ -167,8 +165,6 @@ export async function getStores(city?: string): Promise<Store[]> {
 			throw new Error("Blocked by Cloudflare after session reset");
 		}
 	}
-
-	incrementRequestCount();
 
 	let stores = (data.results ?? [])
 		.filter((s) => s.isWebStore)
