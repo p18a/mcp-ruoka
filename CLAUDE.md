@@ -1,6 +1,6 @@
 # mcp-k-ruoka
 
-MCP server that proxies K-Ruoka grocery product search via Playwright.
+MCP server that proxies K-Ruoka grocery product search via Playwright. Single-client personal tool — keep auth, session management, and infrastructure simple rather than building for multi-tenant scale.
 
 ## Commands
 

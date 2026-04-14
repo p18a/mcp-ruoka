@@ -3,6 +3,8 @@ import { logger } from "../logger.ts";
 import type { Product, SearchResult, Store } from "../types.ts";
 import { getBuildNumber, getPage, resetSession } from "./session.ts";
 
+const API_TIMEOUT = 30_000;
+
 const BlockedResponseSchema = z.object({
 	_blocked: z.literal(true),
 	_status: z.number(),
@@ -106,11 +108,13 @@ async function fetchSearchApi(
 			storeId,
 			limit,
 			buildNumber,
+			timeout,
 		}: {
 			query: string;
 			storeId: string;
 			limit: number;
 			buildNumber: string;
+			timeout: number;
 		}) => {
 			const params = new URLSearchParams({
 				offset: "0",
@@ -126,6 +130,7 @@ async function fetchSearchApi(
 					accept: "application/json",
 					"x-k-build-number": buildNumber,
 				},
+				signal: AbortSignal.timeout(timeout),
 			});
 			const body = await res.text();
 			if (res.status === 403 || body.includes("cf-challenge")) {
@@ -133,25 +138,35 @@ async function fetchSearchApi(
 			}
 			return JSON.parse(body);
 		},
-		{ query, storeId, limit, buildNumber },
+		{ query, storeId, limit, buildNumber, timeout: API_TIMEOUT },
 	);
 
-	return SearchEvalResultSchema.parse(raw);
+	try {
+		return SearchEvalResultSchema.parse(raw);
+	} catch (err) {
+		logger.error({ err }, "Unexpected search API response shape");
+		throw err;
+	}
 }
 
 async function fetchStoresApi(): Promise<StoresEvalResult> {
 	const page = await getPage();
 
-	const raw = await page.evaluate(async () => {
-		const res = await fetch("/kr-api/stores");
+	const raw = await page.evaluate(async (timeout: number) => {
+		const res = await fetch("/kr-api/stores", { signal: AbortSignal.timeout(timeout) });
 		const body = await res.text();
 		if (res.status === 403 || body.includes("cf-challenge")) {
 			return { _blocked: true, _status: res.status, _body: body };
 		}
 		return JSON.parse(body);
-	});
+	}, API_TIMEOUT);
 
-	return StoresEvalResultSchema.parse(raw);
+	try {
+		return StoresEvalResultSchema.parse(raw);
+	} catch (err) {
+		logger.error({ err }, "Unexpected stores API response shape");
+		throw err;
+	}
 }
 
 export async function searchProducts(
