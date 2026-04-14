@@ -36,6 +36,14 @@ interface StoredCode {
 }
 
 const authCodes = new Map<string, StoredCode>();
+const MAX_AUTH_CODES = 100;
+
+function pruneExpiredCodes(): void {
+	const now = Date.now();
+	for (const [code, stored] of authCodes) {
+		if (stored.expiresAt < now) authCodes.delete(code);
+	}
+}
 
 export function createAuthCode(params: {
 	codeChallenge: string;
@@ -43,6 +51,13 @@ export function createAuthCode(params: {
 	redirectUri: string;
 	clientId: string;
 }): string {
+	if (params.codeChallengeMethod !== "S256") {
+		throw new Error("Only S256 code challenge method is supported");
+	}
+	pruneExpiredCodes();
+	if (authCodes.size >= MAX_AUTH_CODES) {
+		throw new Error("Too many pending authorization codes");
+	}
 	const code = randomBytes(32).toString("hex");
 	authCodes.set(code, { ...params, expiresAt: Date.now() + CODE_TTL });
 	return code;
@@ -62,13 +77,10 @@ export function exchangeAuthCode(params: {
 	if (stored.redirectUri !== params.redirectUri) return null;
 	if (stored.clientId !== params.clientId) return null;
 
-	// Verify PKCE
-	if (stored.codeChallengeMethod === "S256") {
-		const expected = createHash("sha256").update(params.codeVerifier).digest("base64url");
-		if (expected !== stored.codeChallenge) return null;
-	} else if (params.codeVerifier !== stored.codeChallenge) {
-		return null;
-	}
+	// Verify PKCE (S256 only)
+	const expected = createHash("sha256").update(params.codeVerifier).digest("base64url");
+	if (expected.length !== stored.codeChallenge.length) return null;
+	if (!timingSafeEqual(Buffer.from(expected), Buffer.from(stored.codeChallenge))) return null;
 
 	return issueAccessToken();
 }

@@ -1,5 +1,4 @@
-app = 'k-ruoka-mcp'
-primary_region = 'arn'
+primary_region = 'hel'
 
 [build]
 

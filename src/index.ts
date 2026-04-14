@@ -24,14 +24,33 @@ function createServer(): McpServer {
 	return server;
 }
 
-const transports = new Map<string, WebStandardStreamableHTTPServerTransport>();
+interface TrackedTransport {
+	transport: WebStandardStreamableHTTPServerTransport;
+	lastActivity: number;
+}
+
+const transports = new Map<string, TrackedTransport>();
+const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
 
 function getTransport(
 	sessionId: string | null,
 ): WebStandardStreamableHTTPServerTransport | undefined {
 	if (!sessionId) return undefined;
-	return transports.get(sessionId);
+	const entry = transports.get(sessionId);
+	if (!entry) return undefined;
+	entry.lastActivity = Date.now();
+	return entry.transport;
 }
+
+setInterval(() => {
+	const cutoff = Date.now() - SESSION_TTL;
+	for (const [id, entry] of transports) {
+		if (entry.lastActivity < cutoff) {
+			entry.transport.close?.();
+			transports.delete(id);
+		}
+	}
+}, 60_000);
 
 const port = Number(process.env.PORT) || 3001;
 const authToken = process.env.MCP_AUTH_TOKEN;
@@ -98,7 +117,13 @@ Bun.serve({
 				const codeChallenge = url.searchParams.get("code_challenge");
 				const codeChallengeMethod = url.searchParams.get("code_challenge_method") ?? "S256";
 
-				if (responseType !== "code" || !id || !redirectUri || !codeChallenge) {
+				if (
+					responseType !== "code" ||
+					!id ||
+					!redirectUri ||
+					!codeChallenge ||
+					codeChallengeMethod !== "S256"
+				) {
 					return Response.json({ error: "invalid_request" }, { status: 400 });
 				}
 				if (!isKnownClientId(id)) {
@@ -185,7 +210,10 @@ Bun.serve({
 				const transport = new WebStandardStreamableHTTPServerTransport({
 					sessionIdGenerator: () => randomUUID(),
 					onsessioninitialized: (sid) => {
-						transports.set(sid, transport);
+						transports.set(sid, {
+							transport,
+							lastActivity: Date.now(),
+						});
 					},
 				});
 				transport.onclose = () => {

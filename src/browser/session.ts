@@ -13,6 +13,7 @@ let context: BrowserContext | null = null;
 let page: Page | null = null;
 let buildNumber: string | null = null;
 let requestCount = 0;
+let initPromise: Promise<Page> | null = null;
 
 const headless = process.env.HEADLESS !== "false";
 const maxRequests = Number(process.env.MAX_REQUESTS_BEFORE_RESET) || 100;
@@ -56,7 +57,7 @@ async function navigateToSite(p: Page): Promise<void> {
 	}
 }
 
-async function ensureInitialized(): Promise<Page> {
+async function doInitialize(): Promise<Page> {
 	// Proactive reset after N requests
 	if (context && requestCount >= maxRequests) {
 		await resetSession();
@@ -79,7 +80,11 @@ async function ensureInitialized(): Promise<Page> {
 }
 
 export async function getPage(): Promise<Page> {
-	return ensureInitialized();
+	if (initPromise) return initPromise;
+	initPromise = doInitialize().finally(() => {
+		initPromise = null;
+	});
+	return initPromise;
 }
 
 export function getBuildNumber(): string {
@@ -88,13 +93,6 @@ export function getBuildNumber(): string {
 
 export function incrementRequestCount(): void {
 	requestCount++;
-}
-
-/** Returns true if the response looks like a Cloudflare block. */
-export function isCloudflareBlock(status: number, body: string): boolean {
-	if (status === 403) return true;
-	const markers = ["Checking your browser", "cf-challenge", "Just a moment"];
-	return markers.some((m) => body.includes(m));
 }
 
 export async function resetSession(): Promise<void> {
