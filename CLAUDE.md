@@ -41,9 +41,12 @@ K-Ruoka uses Cloudflare Turnstile. We use `playwright-extra` with `puppeteer-ext
 
 ## Auth
 
-- Set `MCP_AUTH_TOKEN` to require bearer token auth on all requests
-- If unset, the server runs without auth (local dev only)
-- Clients must send `Authorization: Bearer <token>` header
+Two auth mechanisms, usable independently or together:
+
+- **Static bearer token** — set `MCP_AUTH_TOKEN`; clients send `Authorization: Bearer <token>` directly
+- **OAuth client credentials** — set `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET`; clients discover endpoints via `/.well-known/oauth-protected-resource`, then exchange credentials at `POST /token` for a short-lived JWT
+- If nothing is set, the server runs without auth (local dev only)
+- OAuth is required for claude.ai integration (configure client ID + secret on both sides)
 
 ## Conventions
 

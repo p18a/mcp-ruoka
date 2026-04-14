@@ -2,6 +2,12 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import {
+	issueAccessToken,
+	oauthEnabled,
+	validateAccessToken,
+	validateClientCredentials,
+} from "./auth.ts";
 import { registerSearchTool } from "./tools/search.ts";
 import { registerStoresTool } from "./tools/stores.ts";
 
@@ -27,17 +33,29 @@ function getTransport(
 const port = Number(process.env.PORT) || 3001;
 const authToken = process.env.MCP_AUTH_TOKEN;
 
-if (!authToken) {
-	console.warn("WARNING: MCP_AUTH_TOKEN not set — running without authentication");
+if (!authToken && !oauthEnabled) {
+	console.warn("WARNING: No authentication configured — running without auth");
 }
 
 function checkAuth(req: Request): boolean {
-	if (!authToken) return true;
+	if (!authToken && !oauthEnabled) return true;
 	const header = req.headers.get("authorization");
 	if (!header?.startsWith("Bearer ")) return false;
 	const token = header.slice(7);
-	if (token.length !== authToken.length) return false;
-	return timingSafeEqual(Buffer.from(token), Buffer.from(authToken));
+	if (
+		authToken &&
+		token.length === authToken.length &&
+		timingSafeEqual(Buffer.from(token), Buffer.from(authToken))
+	) {
+		return true;
+	}
+	return oauthEnabled && validateAccessToken(token);
+}
+
+function getBaseUrl(req: Request): string {
+	const proto = req.headers.get("x-forwarded-proto") ?? "http";
+	const host = req.headers.get("host") ?? `localhost:${port}`;
+	return `${proto}://${host}`;
 }
 
 Bun.serve({
@@ -45,12 +63,55 @@ Bun.serve({
 	async fetch(req: Request): Promise<Response> {
 		const url = new URL(req.url);
 
+		if (oauthEnabled) {
+			if (req.method === "GET") {
+				const base = getBaseUrl(req);
+				if (url.pathname === "/.well-known/oauth-protected-resource") {
+					return Response.json({
+						resource: `${base}/mcp`,
+						authorization_servers: [base],
+						bearer_methods_supported: ["header"],
+					});
+				}
+				if (url.pathname === "/.well-known/oauth-authorization-server") {
+					return Response.json({
+						issuer: base,
+						token_endpoint: `${base}/token`,
+						token_endpoint_auth_methods_supported: ["client_secret_post"],
+						grant_types_supported: ["client_credentials"],
+						response_types_supported: [],
+					});
+				}
+			}
+
+			if (url.pathname === "/token" && req.method === "POST") {
+				const params = new URLSearchParams(await req.text());
+				const grantType = params.get("grant_type");
+				const id = params.get("client_id");
+				const secret = params.get("client_secret");
+
+				if (grantType !== "client_credentials") {
+					return Response.json({ error: "unsupported_grant_type" }, { status: 400 });
+				}
+				if (!id || !secret || !validateClientCredentials(id, secret)) {
+					return Response.json({ error: "invalid_client" }, { status: 401 });
+				}
+				return Response.json(issueAccessToken());
+			}
+		}
+
 		if (url.pathname !== "/mcp") {
 			return new Response("Not Found", { status: 404 });
 		}
 
 		if (!checkAuth(req)) {
-			return new Response(null, { status: 401 });
+			const headers: Record<string, string> = {};
+			if (oauthEnabled) {
+				const base = getBaseUrl(req);
+				headers["WWW-Authenticate"] =
+					`Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`;
+			}
+			return new Response(null, { status: 401, headers });
 		}
 
 		const sessionId = req.headers.get("mcp-session-id");

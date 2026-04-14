@@ -1,0 +1,10 @@
+node_modules
+dist
+.browser-data
+.env
+.env.*
+!.env.example
+.git
+screenshots
+snapshots
+.playwright-cli
