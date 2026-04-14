@@ -1,0 +1,136 @@
+import { existsSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { BrowserContext, Page } from "playwright";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+
+chromium.use(StealthPlugin());
+
+const BASE_URL = "https://www.k-ruoka.fi";
+
+let context: BrowserContext | null = null;
+let page: Page | null = null;
+let buildNumber: string | null = null;
+let requestCount = 0;
+
+const headless = process.env.HEADLESS !== "false";
+const maxRequests = Number(process.env.MAX_REQUESTS_BEFORE_RESET) || 100;
+const dataDir =
+	process.env.BROWSER_DATA_DIR?.replace("~", homedir()) ??
+	join(import.meta.dirname, "..", "..", ".browser-data");
+
+async function launch(): Promise<void> {
+	context = await chromium.launchPersistentContext(dataDir, {
+		headless,
+		userAgent:
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		locale: "fi-FI",
+	});
+}
+
+async function navigateToSite(p: Page): Promise<void> {
+	const response = await p.goto(`${BASE_URL}/kauppa`, {
+		waitUntil: "domcontentloaded",
+		timeout: 30000,
+	});
+	// Wait for Cloudflare challenge to resolve
+	await p.waitForFunction('document.title !== "Just a moment..."', {
+		timeout: 15000,
+	});
+
+	// Extract build number from response header
+	buildNumber = (await response?.headerValue("k-ruoka-build")) ?? null;
+
+	// Fallback: extract build number from page scripts
+	if (!buildNumber) {
+		buildNumber = await p.evaluate(`
+			(() => {
+				for (const s of document.querySelectorAll("script")) {
+					const match = s.textContent?.match(/"release":"(\\d+)"/);
+					if (match?.[1]) return match[1];
+				}
+				return null;
+			})()
+		`);
+	}
+}
+
+async function ensureInitialized(): Promise<Page> {
+	// Proactive reset after N requests
+	if (context && requestCount >= maxRequests) {
+		await resetSession();
+	}
+
+	if (!context) {
+		await launch();
+	}
+	if (!page || page.isClosed()) {
+		if (!context) throw new Error("Browser context not initialized");
+		page = await context.newPage();
+	}
+
+	// Navigate to the site if not already there (needed for Cloudflare cookies)
+	if (!page.url().startsWith(BASE_URL)) {
+		await navigateToSite(page);
+	}
+
+	return page;
+}
+
+export async function getPage(): Promise<Page> {
+	return ensureInitialized();
+}
+
+export function getBuildNumber(): string {
+	return buildNumber ?? "30227";
+}
+
+export function incrementRequestCount(): void {
+	requestCount++;
+}
+
+/** Returns true if the response looks like a Cloudflare block. */
+export function isCloudflareBlock(status: number, body: string): boolean {
+	if (status === 403) return true;
+	const markers = ["Checking your browser", "cf-challenge", "Just a moment"];
+	return markers.some((m) => body.includes(m));
+}
+
+export async function resetSession(): Promise<void> {
+	if (page && !page.isClosed()) {
+		await page.close().catch(() => {});
+	}
+	page = null;
+
+	if (context) {
+		await context.close().catch(() => {});
+	}
+	context = null;
+
+	// Nuke the data directory
+	if (existsSync(dataDir)) {
+		rmSync(dataDir, { recursive: true, force: true });
+	}
+
+	buildNumber = null;
+	requestCount = 0;
+}
+
+export async function shutdown(): Promise<void> {
+	if (page && !page.isClosed()) {
+		await page.close();
+	}
+	page = null;
+	if (context) {
+		await context.close();
+	}
+	context = null;
+}
+
+function handleShutdown() {
+	shutdown().finally(() => process.exit(0));
+}
+
+process.on("SIGINT", handleShutdown);
+process.on("SIGTERM", handleShutdown);
