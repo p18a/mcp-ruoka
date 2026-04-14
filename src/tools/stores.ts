@@ -6,7 +6,8 @@ export function registerStoresTool(server: McpServer): void {
 	server.registerTool(
 		"get_stores",
 		{
-			description: "List available K-Ruoka stores, optionally filtered by city",
+			description:
+				"List available K-Ruoka stores. Returns store IDs needed for search_products. Always call this first to get a valid storeId before searching.",
 			inputSchema: z.object({
 				city: z
 					.string()
