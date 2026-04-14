@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -15,10 +16,13 @@ import { getPage } from "./browser/session.ts";
 import { registerSearchTool } from "./tools/search.ts";
 import { registerStoresTool } from "./tools/stores.ts";
 
-function createServer(): McpServer {
+const logoPath = join(import.meta.dirname, "..", "logo.png");
+
+function createServer(baseUrl: string): McpServer {
 	const server = new McpServer({
 		name: "k-ruoka",
 		version: "0.1.0",
+		icons: [{ src: `${baseUrl}/logo.png`, mimeType: "image/png" }],
 	});
 	registerSearchTool(server);
 	registerStoresTool(server);
@@ -175,6 +179,10 @@ Bun.serve({
 			}
 		}
 
+		if (url.pathname === "/logo.png") {
+			return new Response(Bun.file(logoPath));
+		}
+
 		if (url.pathname !== "/mcp") {
 			return new Response("Not Found", { status: 404 });
 		}
@@ -223,7 +231,7 @@ Bun.serve({
 					}
 				};
 
-				const server = createServer();
+				const server = createServer(getBaseUrl(req));
 				await server.connect(transport);
 
 				const newReq = new Request(req.url, {
