@@ -101,6 +101,8 @@ The server runs on `http://localhost:3001/mcp` by default (Streamable HTTP). Pas
 | `OAUTH_CLIENT_SECRET` | OAuth client secret (required for claude.ai) |
 | `MCP_AUTH_TOKEN` | Static bearer token (alternative to OAuth) |
 | `PORT` | Server port (default: 3001) |
+| `LOG_LEVEL` | pino log level (default: info) |
+| `BROWSER_DATA_DIR` | Persistent browser data directory (default: `.browser-data/`) |
 
 ## Usage example
 

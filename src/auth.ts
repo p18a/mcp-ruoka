@@ -58,6 +58,7 @@ export function createAuthCode(params: {
 	if (authCodes.size >= MAX_AUTH_CODES) {
 		throw new Error("Too many pending authorization codes");
 	}
+
 	const code = randomBytes(32).toString("hex");
 	authCodes.set(code, { ...params, expiresAt: Date.now() + CODE_TTL });
 	return code;
@@ -117,15 +118,19 @@ const JwtClaimsSchema = z.object({ exp: z.number(), typ: z.string().optional() }
 
 function verifyJwt(token: string): z.infer<typeof JwtClaimsSchema> | null {
 	if (!oauthEnabled) return null;
+
 	const dot1 = token.indexOf(".");
 	const dot2 = token.lastIndexOf(".");
 	if (dot1 === -1 || dot1 === dot2) return null;
+
 	const headerPayload = token.slice(0, dot2);
 	const signature = token.slice(dot2 + 1);
 	const payload = token.slice(dot1 + 1, dot2);
+
 	const expected = hmacSign(headerPayload);
 	if (expected.length !== signature.length) return null;
 	if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+
 	try {
 		const result = JwtClaimsSchema.safeParse(
 			JSON.parse(Buffer.from(payload, "base64url").toString()),

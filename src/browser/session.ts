@@ -14,7 +14,8 @@ let page: Page | null = null;
 let buildNumber: string | null = null;
 let initPromise: Promise<Page> | null = null;
 
-const dataDir = join(import.meta.dirname, "..", "..", ".browser-data");
+const dataDir =
+	process.env.BROWSER_DATA_DIR ?? join(import.meta.dirname, "..", "..", ".browser-data");
 
 async function launch(): Promise<void> {
 	logger.info({ dataDir }, "Launching browser");
@@ -60,6 +61,7 @@ async function doInitialize(): Promise<Page> {
 	if (!context) {
 		await launch();
 	}
+
 	if (!page || page.isClosed()) {
 		if (!context) throw new Error("Browser context not initialized");
 		page = await context.newPage();
@@ -110,6 +112,7 @@ export async function shutdown(): Promise<void> {
 		await page.close();
 	}
 	page = null;
+
 	if (context) {
 		await context.close();
 	}
