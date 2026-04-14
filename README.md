@@ -2,8 +2,6 @@
 
 Unofficial MCP server for searching [K-Ruoka](https://www.k-ruoka.fi) grocery products. Uses Playwright to proxy K-Ruoka's internal API through a real browser session (Cloudflare bypass via stealth plugin).
 
-<img src="example.png" alt="Example: searching for rye bread at Iso Omena" width="600">
-
 ## Tools
 
 - **search_products** — Search products by query at a specific store
@@ -103,6 +101,10 @@ The server runs on `http://localhost:3001/mcp` by default (Streamable HTTP). Pas
 | `OAUTH_CLIENT_SECRET` | OAuth client secret (required for claude.ai) |
 | `MCP_AUTH_TOKEN` | Static bearer token (alternative to OAuth) |
 | `PORT` | Server port (default: 3001) |
+
+## Usage example
+
+<img src="example.png" alt="Example: searching for rye bread at Iso Omena" width="600">
 
 ## Disclaimer
 
