@@ -22,12 +22,13 @@ import { registerSearchTool } from "./tools/search.ts";
 import { registerStoresTool } from "./tools/stores.ts";
 
 const logoPath = join(import.meta.dirname, "..", "logo.png");
+const logoDataUri = `data:image/png;base64,${Buffer.from(await Bun.file(logoPath).arrayBuffer()).toString("base64")}`;
 
-function createServer(baseUrl?: string): McpServer {
+function createServer(): McpServer {
 	const server = new McpServer({
 		name: "ruoka-mcp",
 		version: "0.2.0",
-		...(baseUrl && { icons: [{ src: `${baseUrl}/logo.png`, mimeType: "image/png" }] }),
+		icons: [{ src: logoDataUri, mimeType: "image/png", sizes: ["512x512"] }],
 	});
 	registerSearchTool(server);
 	registerStoresTool(server);
@@ -254,7 +255,7 @@ function startHttpServer() {
 				if (transport.sessionId) transports.delete(transport.sessionId);
 			};
 
-			const server = createServer(getBaseUrl(req));
+			const server = createServer();
 			await server.connect(transport);
 
 			return transport.handleRequest(
