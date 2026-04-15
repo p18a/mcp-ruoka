@@ -8,6 +8,7 @@ export interface Product {
 	imageUrl: string | null;
 	brand: string | null;
 	category: string | null;
+	abv?: number | null;
 }
 
 export interface Store {

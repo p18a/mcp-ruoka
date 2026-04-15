@@ -168,6 +168,7 @@ function mapProduct(item: z.infer<typeof AlkoProductSchema>): Product {
 		imageUrl: buildImageUrl(item.id),
 		brand: null,
 		category: item.productGroupName?.[0] ?? null,
+		abv: item.abv ?? null,
 	};
 }
 
