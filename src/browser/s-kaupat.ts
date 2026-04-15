@@ -23,10 +23,11 @@ async function extractHashes(): Promise<void> {
 	const ctx = await getContext();
 	const page = await ctx.newPage();
 
-	let resolveHashCaptured: (() => void) | null = null;
-	const hashCaptured = new Promise<void>((resolve) => {
-		resolveHashCaptured = resolve;
-	});
+	const waiters = new Map<string, () => void>();
+	function waitForHash(op: string): Promise<void> {
+		if (hashCache.has(op)) return Promise.resolve();
+		return new Promise((resolve) => waiters.set(op, resolve));
+	}
 
 	try {
 		await page.route("https://api.s-kaupat.fi/**", async (route) => {
@@ -40,7 +41,7 @@ async function extractHashes(): Promise<void> {
 					if (result.success) {
 						hashCache.set(op, result.data.persistedQuery.sha256Hash);
 						logger.debug({ op }, "Captured persisted query hash");
-						if (op === "RemoteFilteredProducts") resolveHashCaptured?.();
+						waiters.get(op)?.();
 					}
 				} catch {
 					// Ignore malformed JSON
@@ -54,18 +55,34 @@ async function extractHashes(): Promise<void> {
 			});
 		});
 
+		// 1. Product search hash: navigate to search results page
 		await page.goto(`${ORIGIN}/hakutulokset?queryString=test`, {
 			waitUntil: "commit",
 			timeout: 30_000,
 		});
-
-		// Wait for the product search hash specifically, not just networkidle
 		await Promise.race([
-			hashCaptured,
+			waitForHash("RemoteFilteredProducts"),
 			page.waitForTimeout(15_000).then(() => {
 				logger.warn("Timed out waiting for RemoteFilteredProducts hash");
 			}),
 		]);
+
+		// 2. Store search hash: navigate to stores page and click "show more"
+		await page.goto(`${ORIGIN}/myymalat/prisma`, {
+			waitUntil: "domcontentloaded",
+			timeout: 30_000,
+		});
+		await page.evaluate(`document.getElementById("usercentrics-root")?.remove()`);
+		const btn = page.locator("button", { hasText: "Näytä lisää" });
+		if (await btn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+			await btn.click();
+			await Promise.race([
+				waitForHash("RemoteStoreSearch"),
+				page.waitForTimeout(10_000).then(() => {
+					logger.warn("Timed out waiting for RemoteStoreSearch hash");
+				}),
+			]);
+		}
 	} finally {
 		await page.close();
 	}
@@ -249,74 +266,116 @@ export async function searchProducts(
 	};
 }
 
-// --- Store listing (scraped from server-rendered HTML) ---
+// --- Store listing via RemoteStoreSearch GraphQL API ---
 
-const STORE_BRANDS = [
-	"prisma",
-	"s-market",
-	"alepa",
-	"sale",
-	"herkku",
-	"sokos-herkku",
-	"mestarin-herkku",
-];
+const StoreSearchStoreSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	location: z.object({
+		address: z.object({
+			postcodeName: z.object({
+				default: z.string(),
+			}),
+		}),
+	}),
+});
 
-const STORE_CARD_RE =
-	/href="\/myymala\/([\w-]+)\/(\d+)".*?data-test-id="store-title">([^<]+)<\/h2>.*?<\/svg><\/span><span>([^<]+)<\/span>/gs;
+const StoreSearchResponseSchema = z.object({
+	data: z.object({
+		searchStores: z.object({
+			totalCount: z.number(),
+			cursor: z.string().nullable(),
+			stores: z.array(StoreSearchStoreSchema),
+		}),
+	}),
+});
 
-let storeCache: Store[] | null = null;
+let allStoresCache: Store[] | null = null;
 
-function parseCityFromAddress(address: string): string {
-	const match = address.match(/\d{5}\s+(.+)/);
-	return match?.[1] ?? address;
-}
+async function fetchStoreSearchPage(
+	query: string | null,
+	cursor: string | null,
+	hash: string,
+): Promise<z.infer<typeof StoreSearchResponseSchema>> {
+	const url = new URL(API_URL);
+	url.searchParams.set("operationName", "RemoteStoreSearch");
+	url.searchParams.set("variables", JSON.stringify({ query, brand: null, cursor }));
+	url.searchParams.set(
+		"extensions",
+		JSON.stringify({ persistedQuery: { version: 1, sha256Hash: hash } }),
+	);
 
-async function fetchBrandStores(brand: string): Promise<Store[]> {
-	const response = await fetch(`${ORIGIN}/myymalat/${brand}`, {
+	const response = await fetch(url, {
 		headers: {
+			Origin: ORIGIN,
+			Referer: `${ORIGIN}/`,
 			"User-Agent":
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-			Accept: "text/html",
+			Accept: "application/json",
 		},
 		signal: AbortSignal.timeout(API_TIMEOUT),
 	});
 
 	if (!response.ok) {
-		logger.warn({ brand, status: response.status }, "Failed to fetch S-Kaupat store page");
-		return [];
+		throw new Error(`S-Kaupat store search API HTTP ${response.status}`);
 	}
 
-	const html = await response.text();
-	const stores: Store[] = [];
+	const raw = await response.json();
 
-	for (const match of html.matchAll(STORE_CARD_RE)) {
-		const id = match[2];
-		const name = match[3];
-		const address = match[4];
-		if (!id || !name || !address) continue;
-		stores.push({
-			id,
-			name,
-			chain: "s-kaupat",
-			location: parseCityFromAddress(address),
-		});
+	if (PersistedQueryNotFoundSchema.safeParse(raw).success) {
+		throw new Error("PERSISTED_QUERY_NOT_FOUND");
+	}
+
+	return StoreSearchResponseSchema.parse(raw);
+}
+
+async function fetchAllStores(query: string | null): Promise<Store[]> {
+	const hash = await getHash("RemoteStoreSearch");
+
+	const stores: Store[] = [];
+	let cursor: string | null = null;
+
+	try {
+		do {
+			const parsed = await fetchStoreSearchPage(query, cursor, hash);
+			const page = parsed.data.searchStores;
+
+			for (const s of page.stores) {
+				stores.push({
+					id: s.id,
+					name: s.name,
+					chain: "s-kaupat",
+					location: s.location.address.postcodeName.default,
+				});
+			}
+
+			cursor = page.cursor;
+		} while (cursor);
+	} catch (err) {
+		if (err instanceof Error && err.message === "PERSISTED_QUERY_NOT_FOUND") {
+			logger.warn("Store search hash expired, re-extracting");
+			hashCache.clear();
+			return fetchAllStores(query);
+		}
+		throw err;
 	}
 
 	return stores;
 }
 
 export async function getStores(city?: string): Promise<Store[]> {
-	if (!storeCache) {
-		logger.info("Fetching S-Kaupat store listings");
-		const results = await Promise.all(STORE_BRANDS.map(fetchBrandStores));
-		storeCache = results.flat();
-		logger.info({ storeCount: storeCache.length }, "S-Kaupat stores fetched");
-	}
-
 	if (city) {
-		const lower = city.toLowerCase();
-		return storeCache.filter((s) => s.location.toLowerCase().includes(lower));
+		logger.info({ city }, "Fetching S-Kaupat stores");
+		const stores = await fetchAllStores(city);
+		logger.info({ city, storeCount: stores.length }, "S-Kaupat stores fetched");
+		return stores;
 	}
 
-	return storeCache;
+	if (!allStoresCache) {
+		logger.info("Fetching all S-Kaupat stores");
+		allStoresCache = await fetchAllStores(null);
+		logger.info({ storeCount: allStoresCache.length }, "S-Kaupat stores fetched");
+	}
+
+	return allStoresCache;
 }
