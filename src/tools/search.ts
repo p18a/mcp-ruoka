@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 import * as alko from "../browser/alko.ts";
 import * as kRuoka from "../browser/k-ruoka.ts";
 import * as sKaupat from "../browser/s-kaupat.ts";
+import { logger } from "../logger.ts";
 
 export function registerSearchTool(server: McpServer): void {
 	server.registerTool(
@@ -59,6 +60,7 @@ export function registerSearchTool(server: McpServer): void {
 					],
 				};
 			} catch (error) {
+				logger.error({ err: error, chain, query, storeId }, "Product search failed");
 				return {
 					content: [
 						{

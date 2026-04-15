@@ -87,7 +87,7 @@ function parseProduct(item: z.infer<typeof ApiProductSchema>): Product {
 		unitPrice: unitPrice
 			? `${unitPrice.value.toFixed(2).replace(".", ",")} €/${unitPrice.unit}`
 			: null,
-		ean: p.ean,
+		id: p.ean,
 		imageUrl: p.images?.[0] ?? null,
 		brand: p.brand?.name ?? null,
 		category: p.category?.localizedName?.finnish ?? null,

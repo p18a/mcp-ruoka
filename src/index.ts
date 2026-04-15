@@ -26,7 +26,7 @@ const logoDataUri = `data:image/png;base64,${Buffer.from(await Bun.file(logoPath
 
 function createServer(): McpServer {
 	const server = new McpServer({
-		name: "ruoka-mcp",
+		name: "mcp-ruoka",
 		version: "0.2.0",
 		icons: [{ src: logoDataUri, mimeType: "image/png", sizes: ["512x512"] }],
 	});

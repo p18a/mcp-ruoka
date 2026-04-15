@@ -4,7 +4,7 @@ export interface Product {
 	name: string;
 	price: number | null;
 	unitPrice: string | null;
-	ean: string;
+	id: string;
 	imageUrl: string | null;
 	brand: string | null;
 	category: string | null;
@@ -22,6 +22,6 @@ export interface SearchResult {
 	products: Product[];
 	totalCount: number;
 	query: string;
-	storeId: string;
+	storeId: string | null;
 	chain: Chain;
 }

@@ -92,7 +92,7 @@ function signJwt(claims: Record<string, unknown>): string {
 	return `${header}.${payload}.${signature}`;
 }
 
-export interface TokenResponse {
+interface TokenResponse {
 	access_token: string;
 	token_type: string;
 	expires_in: number;

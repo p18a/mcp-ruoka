@@ -186,7 +186,7 @@ function mapProduct(item: z.infer<typeof ProductListItemSchema>): Product {
 			comparisonPrice != null && comparisonUnit
 				? `${comparisonPrice.toFixed(2).replace(".", ",")} \u20AC/${comparisonUnit.toLowerCase()}`
 				: null,
-		ean: p.ean,
+		id: p.ean,
 		imageUrl: p.productDetails.productImages.mainImage
 			? buildImageUrl(p.productDetails.productImages.mainImage.urlTemplate)
 			: null,
@@ -259,7 +259,7 @@ export async function searchProducts(
 	const products = productListItems.map(mapProduct);
 
 	if (products.length === 0) {
-		logger.warn({ query, storeId, total, raw }, "S-Kaupat returned 0 products");
+		logger.info({ query, storeId, total }, "S-Kaupat returned 0 products");
 	}
 
 	logger.info({ query, resultCount: products.length, total }, "S-Kaupat search completed");

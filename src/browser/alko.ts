@@ -164,7 +164,7 @@ function mapProduct(item: z.infer<typeof AlkoProductSchema>): Product {
 		name: item.name,
 		price: item.price,
 		unitPrice: pricePerLiter,
-		ean: item.id,
+		id: item.id,
 		imageUrl: buildImageUrl(item.id),
 		brand: null,
 		category: item.productGroupName?.[0] ?? null,
@@ -216,7 +216,7 @@ export async function searchProducts(
 		products,
 		totalCount: parsed["@odata.count"] ?? products.length,
 		query,
-		storeId: storeId ?? "national",
+		storeId: storeId ?? null,
 		chain: "alko",
 	};
 }

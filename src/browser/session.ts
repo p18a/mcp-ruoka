@@ -159,7 +159,7 @@ export async function resetSession(): Promise<void> {
 	buildNumber = null;
 }
 
-export async function shutdown(): Promise<void> {
+async function shutdown(): Promise<void> {
 	if (page && !page.isClosed()) {
 		await page.close();
 	}

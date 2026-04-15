@@ -1,6 +1,6 @@
 {
 	"name": "ruoka",
-	"description": "Search Finnish grocery products across K-Ruoka and S-Kaupat via MCP",
+	"description": "Search Finnish grocery and alcohol products across K-Ruoka, S-Kaupat, and Alko via MCP",
 	"version": "0.2.0",
 	"author": {
 		"name": "p18a"
