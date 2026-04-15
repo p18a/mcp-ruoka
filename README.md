@@ -1,11 +1,15 @@
 # mcp-ruoka
 
-Unofficial MCP server for searching Finnish grocery products across [K-Ruoka](https://www.k-ruoka.fi) and [S-Kaupat](https://www.s-kaupat.fi). Uses Playwright to proxy K-Ruoka's internal API through a real browser session (Cloudflare bypass via stealth plugin) and direct HTTP for S-Kaupat's GraphQL API.
+Unofficial MCP server for searching Finnish grocery and alcohol products across [K-Ruoka](https://www.k-ruoka.fi), [S-Kaupat](https://www.s-kaupat.fi), and [Alko](https://www.alko.fi).
+
+- **K-Ruoka** — Playwright browser with stealth plugin (Cloudflare Turnstile bypass)
+- **S-Kaupat** — Direct HTTP with persisted GraphQL query hashes (extracted via Playwright)
+- **Alko** — Direct HTTP with NextAuth guest session (no browser needed)
 
 ## Tools
 
-- **search_products** — Search products by query at a specific store (K-Ruoka or S-Kaupat)
-- **get_stores** — List grocery stores, optionally filtered by city and/or chain
+- **search_products** — Search products by query. Supports all three chains. `storeId` required for K-Ruoka/S-Kaupat, optional for Alko (national catalog).
+- **get_stores** — List stores, optionally filtered by city and/or chain.
 
 ## Install as Claude Code plugin
 
@@ -110,4 +114,4 @@ The server runs on `http://localhost:3001/mcp` by default (Streamable HTTP). Pas
 
 ## Disclaimer
 
-This project is unofficial and not affiliated with K Group, K-Ruoka, S Group, or S-Kaupat. It accesses publicly available data through their websites. Use responsibly.
+This project is unofficial and not affiliated with K Group, K-Ruoka, S Group, S-Kaupat, or Alko. It accesses publicly available data through their websites. Use responsibly.
